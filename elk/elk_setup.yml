@@ -1,0 +1,141 @@
+---
+- name: es-setup
+  remote_user: root
+  hosts: es
+  tasks:
+    - name: hosts
+      copy: 
+        src: hosts
+        dest: /etc/hosts
+    - name: copy repo
+      copy:
+        src: local.repo
+        dest: /etc/yum.repos.d/local.repo
+        owner: root
+        group: root
+        mode: 0644
+    - name: setup elasticsearch
+      yum:
+        name: java-1.8.0-openjdk, elasticsearch
+        state: present
+    - name: copy plugin
+      copy:
+        src: plugins/ 
+        dest: /root/
+    - name: setup plugin head
+      shell: /usr/share/elasticsearch/bin/plugin install file:///root/elasticsearch-head-master.zip 
+      ignore_errors: yes
+    - name: setup plugin bigdesk
+      shell: /usr/share/elasticsearch/bin/plugin install file:///root/bigdesk-master.zip
+      ignore_errors: yes
+    - name: setup plugin kopf
+      shell: /usr/share/elasticsearch/bin/plugin install file:///root/elasticsearch-kopf-master.zip
+      ignore_errors: yes
+    - name: elasticsearch.yml    
+      template:
+        src: elasticsearch.yml
+        dest: /etc/elasticsearch/elasticsearch.yml
+      notify: reload_elasticsearch
+    - name: enabled elasticsearch
+      service:
+        name: elasticsearch
+        enabled: yes
+  handlers:
+    - name: reload_elasticsearch
+      service:
+        name: elasticsearch
+        state: restarted
+- name: setup kibana
+  hosts: kibana
+  remote_user: root
+  tasks:
+    - name: hosts
+      copy:
+        src: hosts
+        dest: /etc/hosts
+    - name: copy local.repo
+      copy: 
+        src: local.repo
+        dest: /etc/yum.repos.d/local.repo
+    - name: yum kibana
+      yum: 
+        name: kibana
+        state: present
+    - name: kibana.yml
+      copy: 
+        src: kibana.yml
+        dest: /opt/kibana/config/kibana.yml
+      notify: reload_kibana
+    - name: enabled kibana
+      service:
+        name: kibana
+        enabled: yes
+  handlers: 
+    - name: reload_kibana
+      service:
+        name: kibana
+        state: restarted
+- name: setup logstash
+  remote_user: root
+  hosts: logstash
+  tasks:
+    - name: copy hosts
+      copy: 
+        src: hosts
+        dest: /etc/hosts
+    - name: copy local.repo
+      copy:
+        src: local.repo
+        dest: /etc/yum.repos.d/local.repo
+    - name: yum logstash
+      yum:
+        name: java-1.8.0-openjdk,logstash
+        state: present
+    - name: logstash.conf 
+      copy:
+        src: logstash.conf
+        dest: /etc/logstash/logstash.conf
+- name: nginx web
+  remote_user: root
+  hosts: web
+  tasks:
+    - name: hosts
+      copy: 
+        src: hosts
+        dest: /etc/hosts
+    - name: local.repo
+      copy:
+        src: local.repo
+        dest: /etc/yum.repos.d/local.repo
+    - name: ningx.tar
+      copy:
+        src: nginx-1.12.2.tar.gz
+        dest: /root/
+    - name: yum
+      yum:
+        name: gcc,pcre-devel,zlib-devel
+        state: present
+    - name: setup nginx
+      shell: tar -xf /root/nginx-1.12.2.tar.gz;cd nginx-1.12.2;./configure;make && make install
+    - name: index.html     
+      copy:
+        src: index.html
+        dest: /usr/local/nginx/html/
+    - name: nginx.service
+      shell: /usr/local/nginx/sbin/nginx
+      ignore_errors: yes
+    - name: yum filebeat
+      yum:
+        name: filebeat
+        state: present
+    - name: filebeat.yml
+      copy:
+        src: filebeat.yml
+        dest: /etc/filebeat/filebeat.yml
+      notify: reload_filebeat 
+  handlers:
+    - name: reload_filebeat
+      service:
+        name: filebeat
+        state: restarted
+        enabled: yes
